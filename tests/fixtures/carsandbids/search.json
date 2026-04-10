@@ -1,0 +1,54 @@
+{
+  "auctions": [
+    {
+      "id": 12345,
+      "slug": "2004-porsche-boxster-s-lagoon-green",
+      "title": "2004 Porsche Boxster S 6-speed",
+      "description": "Lagoon Green Metallic over black. 6-speed manual. LN Engineering IMS Solution installed by Porsche specialist. Comprehensive service records. 47,500 miles.",
+      "year": 2004,
+      "model": "Boxster S",
+      "mileage": 47500,
+      "exteriorColor": "Lagoon Green Metallic",
+      "interiorColor": "Black",
+      "transmission": "6-speed manual",
+      "vin": "WP0CB29874U660000",
+      "currentBid": 22000,
+      "endsAt": "2026-04-15T18:00:00Z",
+      "location": "Austin, TX",
+      "sellerType": "private",
+      "images": [
+        "https://example.com/img1.jpg",
+        "https://example.com/img2.jpg"
+      ]
+    },
+    {
+      "id": 12346,
+      "slug": "2003-porsche-boxster-s-guards-red",
+      "title": "2003 Porsche Boxster S",
+      "description": "Guards Red over tan. 6-speed manual. IMS bearing replaced. New clutch.",
+      "year": 2003,
+      "model": "Boxster S",
+      "mileage": 78900,
+      "exteriorColor": "Guards Red",
+      "interiorColor": "Tan",
+      "transmission": "6-speed manual",
+      "currentBid": 16500,
+      "endsAt": "2026-04-13T20:00:00Z",
+      "location": "Denver, CO",
+      "sellerType": "dealer",
+      "images": []
+    },
+    {
+      "id": 12347,
+      "slug": "2004-porsche-boxster-s-tiptronic",
+      "title": "2004 Porsche Boxster S Tiptronic",
+      "description": "3.2L Tiptronic, low miles, two owners.",
+      "year": 2004,
+      "mileage": 51000,
+      "exteriorColor": "Arctic Silver Metallic",
+      "transmission": "Tiptronic",
+      "currentBid": 14000,
+      "location": "Phoenix, AZ"
+    }
+  ]
+}
