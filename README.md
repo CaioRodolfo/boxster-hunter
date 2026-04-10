@@ -62,7 +62,7 @@ core pipeline without any third-party accounts.
 | Env var | Required | Purpose |
 | --- | --- | --- |
 | `NOTION_API_KEY` | live runs | Notion integration token |
-| `NOTION_DATABASE_ID` | live runs | Target database for listings |
+| `NOTION_DATABASE_ID` | live runs | Target database for listings (the live "986 Hunt" DB has id `ee4dfdd8471d4d9e9c0bfa7144f11bd1`) |
 | `SLACK_WEBHOOK_URL` | optional | Incoming webhook for STRONG+ alerts |
 | `SENDGRID_API_KEY` | optional | Email alerts for STRONG+ |
 | `ALERT_EMAIL` | optional | Recipient for email alerts |
