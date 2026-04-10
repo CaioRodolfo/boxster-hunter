@@ -1,71 +1,82 @@
-"""Cars & Bids scraper. Their search endpoint returns JSON; parse directly."""
+"""Cars & Bids scraper.
+
+Cars & Bids is a pure React SPA — there's no SSR data we can scrape from the
+HTML. They do publish an RSS feed of every active auction, which is exactly
+what we need: title + canonical URL + a long-form description full of details
+the scoring engine can chew on.
+
+The RSS contains every active auction across all makes (~200 at any given
+time), so we filter to "boxster" mentions in the parser. Year + 6-speed +
+IMS detection happens later in the scoring engine.
+"""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime
-from typing import Any
+import feedparser
 
 from boxster_hunter.models import Listing
 from boxster_hunter.scrapers.base import BaseScraper
 
-SEARCH_URL = "https://carsandbids.com/api/search?q=porsche+boxster+s+986"
+RSS_URL = "https://carsandbids.com/rss.xml"
 
 
 class CarsAndBidsScraper(BaseScraper):
     source = "carsandbids"
 
     def fetch_listings(self) -> list[Listing]:
-        resp = self.http_get(SEARCH_URL)
+        resp = self.http_get(RSS_URL)
         resp.raise_for_status()
-        return self.parse(resp.text)
+        return self.parse(resp.content)
 
     def parse(self, payload: str | bytes) -> list[Listing]:
-        if isinstance(payload, bytes):
-            payload = payload.decode("utf-8")
-        data = json.loads(payload)
-        return [self._parse_one(item) for item in data.get("auctions", [])]
-
-    def _parse_one(self, item: dict[str, Any]) -> Listing:
-        slug = item.get("slug") or item.get("id", "")
-        url = f"https://carsandbids.com/auctions/{slug}"
-        return Listing(
-            source=self.source,
-            source_id=str(item.get("id") or slug),
-            url=url,
-            first_seen=self.now(),
-            last_updated=self.now(),
-            title=item.get("title", ""),
-            description=item.get("description") or item.get("doc", ""),
-            year=item.get("year"),
-            model=item.get("model"),
-            mileage=_to_int(item.get("mileage")),
-            color_exterior=item.get("exteriorColor"),
-            color_interior=item.get("interiorColor"),
-            transmission=item.get("transmission"),
-            vin=item.get("vin"),
-            price=_to_int(item.get("currentBid") or item.get("highBid")),
-            price_is_auction=True,
-            auction_end=_parse_iso(item.get("endsAt")),
-            location=item.get("location"),
-            seller_type=item.get("sellerType"),
-            image_urls=list(item.get("images", []) or []),
-        )
+        feed = feedparser.parse(payload)
+        out: list[Listing] = []
+        for entry in feed.entries:
+            title = entry.get("title", "")
+            # Cars & Bids has all makes — keep only Boxster mentions and let
+            # the scoring engine handle the rest of the spec match.
+            if "boxster" not in title.lower():
+                continue
+            url = entry.get("link") or entry.get("id")
+            if not url:
+                continue
+            description = _strip_html(entry.get("summary", "") or entry.get("description", ""))
+            year = _first_year(title)
+            out.append(
+                Listing(
+                    source=self.source,
+                    source_id=_source_id_from_url(url),
+                    url=url,
+                    first_seen=self.now(),
+                    last_updated=self.now(),
+                    title=title,
+                    description=description,
+                    year=year,
+                    price_is_auction=True,
+                )
+            )
+        return out
 
 
-def _to_int(v: Any) -> int | None:
-    if v is None or v == "":
-        return None
-    try:
-        return int(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def _parse_iso(s: str | None) -> datetime | None:
+def _strip_html(s: str) -> str:
+    """RSS descriptions are HTML; pull the text out for the scoring engine."""
     if not s:
-        return None
-    try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+        return ""
+    from bs4 import BeautifulSoup
+
+    return BeautifulSoup(s, "lxml").get_text(" ", strip=True)
+
+
+def _first_year(text: str) -> int | None:
+    import re
+
+    m = re.search(r"\b(19|20)\d{2}\b", text)
+    return int(m.group(0)) if m else None
+
+
+def _source_id_from_url(url: str) -> str:
+    """Cars & Bids URLs look like /auctions/{shortid}/{slug}."""
+    parts = url.rstrip("/").split("/")
+    if len(parts) >= 2 and parts[-2] != "auctions":
+        return parts[-2]  # the short id
+    return parts[-1]

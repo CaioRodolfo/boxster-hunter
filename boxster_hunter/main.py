@@ -25,17 +25,17 @@ from boxster_hunter.scrapers.base import BaseScraper
 from boxster_hunter.scrapers.boxster_forum import BoxsterForumScraper
 from boxster_hunter.scrapers.carsandbids import CarsAndBidsScraper
 from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
-from boxster_hunter.scrapers.craigslist import CraigslistScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
 from boxster_hunter.scrapers.planet9 import Planet9Scraper
 from boxster_hunter.scrapers.rennlist import RennlistScraper
 
 log = logging.getLogger("boxster.main")
 
+# Craigslist is intentionally absent — see scrapers/craigslist.py for the
+# explanation. Six active sources is the right number for now.
 ALL_SCRAPERS: list[type[BaseScraper]] = [
     CarsAndBidsScraper,
     ClassicDotComScraper,
-    CraigslistScraper,
     PCarMarketScraper,
     BoxsterForumScraper,
     RennlistScraper,

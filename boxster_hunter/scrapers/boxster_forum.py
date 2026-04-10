@@ -1,21 +1,13 @@
-"""986forum.com 'For Sale' subforum scraper."""
+"""986forum.com 'Boxsters/Cayman Cars - For Sale & Wanted' subforum scraper."""
 
 from __future__ import annotations
 
 from boxster_hunter.models import Listing
-from boxster_hunter.scrapers._forum_common import CardSelectors, parse_cards
+from boxster_hunter.scrapers._forum_common import parse_vbulletin
 from boxster_hunter.scrapers.base import BaseScraper
 
-SEARCH_URL = "https://986forum.com/forums/986-boxster-s-for-sale/"
-
-SELECTORS = CardSelectors(
-    card="li.thread, tr.thread, div.thread-row",
-    link="a.thread-title, a.title, a[href]",
-    title="a.thread-title, a.title",
-    description=".thread-snippet, .snippet, .post-preview",
-    location=".thread-location, .location",
-    base_url="https://986forum.com",
-)
+SEARCH_URL = "https://986forum.com/forums/boxsters-cayman-cars-sale-wanted/"
+BASE_URL = "https://986forum.com"
 
 
 class BoxsterForumScraper(BaseScraper):
@@ -27,4 +19,4 @@ class BoxsterForumScraper(BaseScraper):
         return self.parse(resp.text)
 
     def parse(self, payload: str | bytes) -> list[Listing]:
-        return parse_cards(payload, SELECTORS, self.source, self.now)
+        return parse_vbulletin(payload, self.source, BASE_URL, self.now)

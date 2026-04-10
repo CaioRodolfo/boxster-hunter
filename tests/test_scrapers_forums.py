@@ -1,7 +1,14 @@
-"""Parser tests for the Phase 4 forum scrapers."""
+"""Parser tests for the four forum/auction scrapers (PCARMARKET + 3 forums).
+
+Like test_scrapers_easy, these run against live-captured fixtures and assert
+structural invariants rather than specific listing content (which rotates).
+"""
 
 from pathlib import Path
 
+import pytest
+
+from boxster_hunter.models import Listing
 from boxster_hunter.scoring import score_listing
 from boxster_hunter.scrapers.boxster_forum import BoxsterForumScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
@@ -11,85 +18,110 @@ from boxster_hunter.scrapers.rennlist import RennlistScraper
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _load(rel: str) -> str:
-    return (FIXTURES / rel).read_text()
+def _load(rel: str) -> bytes:
+    return (FIXTURES / rel).read_bytes()
 
 
 # ---------- PCARMARKET ----------
 
-def test_pcarmarket_parses_two_cards():
-    listings = PCarMarketScraper().parse(_load("pcarmarket/search.html"))
-    assert len(listings) == 2
+@pytest.fixture
+def pcm_listings():
+    return PCarMarketScraper().parse(_load("pcarmarket/api.json"))
 
 
-def test_pcarmarket_midnight_blue_is_gold():
-    listings = PCarMarketScraper().parse(_load("pcarmarket/search.html"))
-    midnight = next(item for item in listings if "Midnight" in item.title)
-    scored = score_listing(midnight)
-    assert scored.tier == "🏆 GOLD"
-    assert scored.has_ims_solution is True
+def test_pcarmarket_filters_to_boxsters_only(pcm_listings):
+    # The api.json fixture contains 10 active Porsches; the parser keeps
+    # only Boxsters. The fixture may legitimately have zero Boxsters at
+    # capture time — that's still valid behavior.
+    for L in pcm_listings:
+        assert "boxster" in L.title.lower()
 
 
-def test_pcarmarket_extracts_price_and_mileage():
-    listings = PCarMarketScraper().parse(_load("pcarmarket/search.html"))
-    midnight = next(item for item in listings if "Midnight" in item.title)
-    assert midnight.price == 23500
-    assert midnight.mileage == 38500
-    assert midnight.location == "Seattle, WA"
+def test_pcarmarket_listings_have_required_fields(pcm_listings):
+    for L in pcm_listings:
+        assert L.source == "pcarmarket"
+        assert L.url_str.startswith("https://www.pcarmarket.com/auction/")
+        assert L.title
+        assert L.price_is_auction is True
 
 
 # ---------- 986forum ----------
 
-def test_boxster_forum_parses_two_threads():
-    listings = BoxsterForumScraper().parse(_load("boxster_forum/forsale.html"))
-    assert len(listings) == 2
+@pytest.fixture
+def b986_listings():
+    return BoxsterForumScraper().parse(_load("boxster_forum/forsale.html"))
 
 
-def test_boxster_forum_lagoon_green_is_gold():
-    listings = BoxsterForumScraper().parse(_load("boxster_forum/forsale.html"))
-    lagoon = next(item for item in listings if "Lagoon" in item.title)
-    scored = score_listing(lagoon)
-    assert scored.tier == "🏆 GOLD"
-    assert scored.color_match["name"] == "Lagoon Green Metallic"
+def test_986forum_finds_threads(b986_listings):
+    assert len(b986_listings) >= 1
 
 
-def test_boxster_forum_tiptronic_rejected():
-    listings = BoxsterForumScraper().parse(_load("boxster_forum/forsale.html"))
-    tip = next(item for item in listings if "Tiptronic" in item.title)
-    scored = score_listing(tip)
-    assert scored.tier == "REJECTED"
+def test_986forum_listings_well_formed(b986_listings):
+    for L in b986_listings:
+        assert L.source == "986forum"
+        assert L.url_str.startswith("https://986forum.com/forums/")
+        assert L.source_id.isdigit()
+        assert L.title
+
+
+def test_986forum_scoring_runs_without_error(b986_listings):
+    for L in b986_listings:
+        scored = score_listing(L)
+        assert scored.tier in {
+            "🏆 GOLD", "🥇 STRONG", "🥈 REVIEW", "🥉 MARGINAL", "REJECTED",
+        }
 
 
 # ---------- Rennlist ----------
 
-def test_rennlist_pine_green_strong_or_gold():
-    listings = RennlistScraper().parse(_load("rennlist/classifieds.html"))
-    pine = next(item for item in listings if "Pine" in item.title)
-    scored = score_listing(pine)
-    assert scored.score >= 70
+@pytest.fixture
+def rennlist_listings():
+    return RennlistScraper().parse(_load("rennlist/forsale.html"))
 
 
-def test_rennlist_base_5mt_rejected():
-    listings = RennlistScraper().parse(_load("rennlist/classifieds.html"))
-    base = next(item for item in listings if "5MT" in item.title or "base" in item.title.lower())
-    scored = score_listing(base)
-    assert scored.tier == "REJECTED"
+def test_rennlist_finds_threads(rennlist_listings):
+    # The for-sale subforum is high-volume; we should always pick up many.
+    assert len(rennlist_listings) >= 5
+
+
+def test_rennlist_listings_well_formed(rennlist_listings):
+    for L in rennlist_listings:
+        assert L.source == "rennlist"
+        assert L.url_str.startswith("https://rennlist.com/forums/")
+        assert L.source_id.isdigit()
+        assert isinstance(L, Listing)
+
+
+def test_rennlist_scoring_runs_without_error(rennlist_listings):
+    for L in rennlist_listings:
+        score_listing(L)
 
 
 # ---------- Planet-9 ----------
 
-def test_planet9_fayence_yellow_is_gold():
-    listings = Planet9Scraper().parse(_load("planet9/forsale.html"))
-    fayence = next(item for item in listings if "Fayence" in item.title)
-    scored = score_listing(fayence)
-    assert scored.tier == "🏆 GOLD"
-    # Fayence Yellow is "unicorn" rarity → should hit the rare bonus
-    assert scored.color_match["rarity"] == "unicorn"
-    assert any("RARE" in f for f in scored.flags)
+@pytest.fixture
+def planet9_listings():
+    return Planet9Scraper().parse(_load("planet9/forsale.html"))
 
 
-def test_planet9_silver_is_below_gold():
-    listings = Planet9Scraper().parse(_load("planet9/forsale.html"))
-    silver = next(item for item in listings if "Arctic" in item.title)
-    scored = score_listing(silver)
-    assert scored.tier != "🏆 GOLD"
+def test_planet9_finds_threads(planet9_listings):
+    assert len(planet9_listings) >= 1
+
+
+def test_planet9_unique_thread_ids(planet9_listings):
+    """Each XenForo thread appears once per cell in the page; we dedupe by tid."""
+    ids = [L.source_id for L in planet9_listings]
+    assert len(ids) == len(set(ids))
+
+
+def test_planet9_skips_label_anchors(planet9_listings):
+    """Make sure we picked the title anchor, not the 'Sticky'/'Sold' badge."""
+    for L in planet9_listings:
+        assert L.title.lower() not in {"sticky", "sold", "want to buy"}
+
+
+def test_planet9_listings_well_formed(planet9_listings):
+    for L in planet9_listings:
+        assert L.source == "planet9"
+        assert L.url_str.startswith("https://www.planet-9.com/threads/")
+        assert L.source_id.isdigit()

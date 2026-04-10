@@ -90,6 +90,12 @@ def score_listing(listing: Listing) -> Listing:
     if listing.year and listing.year not in (2003, 2004):
         return _reject(listing, f"❌ Wrong year ({listing.year})")
 
+    # Forum scrapers pull from general "for sale" subforums where non-Boxsters
+    # appear regularly (911s, Caymans, parts threads). Reject anything that
+    # never mentions "boxster" anywhere in the text.
+    if "boxster" not in full_text:
+        return _reject(listing, "❌ Not a Boxster")
+
     # ---- POSITIVE SCORING ----
 
     # 6-speed manual (30 points)

@@ -68,6 +68,23 @@ core pipeline without any third-party accounts.
 | `ALERT_EMAIL` | optional | Recipient for email alerts |
 | `BOXSTER_DB_PATH` | optional | SQLite path (default `boxster.db`) |
 
+## Known limitations
+
+* **Search-index scoring is shallow.** All six scrapers parse list/index pages,
+  which give titles + structured fields but no long-form descriptions. The
+  scoring engine looks for IMS / 6-speed / color mentions in the text, so most
+  listings score MARGINAL until a human follows the link. A v2 enhancement is
+  to fetch each candidate's detail page and re-score against the full body.
+* **Cars & Bids RSS** contains all current auctions (~200 across all makes);
+  the parser keeps only "boxster" titles. A 986-only filter isn't possible
+  without fetching detail pages.
+* **PCARMARKET** filters by `make=porsche` server-side and the parser keeps
+  only `boxster` titles. The result count depends on what's currently active.
+* **Craigslist** is dropped — see `boxster_hunter/scrapers/craigslist.py` for
+  the full explanation. RSS is 403'd, the HTML fallback only shows "see also"
+  suggestions, and the runtime is GitHub Actions which is on AWS IPs that
+  Craigslist explicitly blocks.
+
 ## Defaults / open questions resolved
 
 The spec's Section 16 open questions are resolved as follows. Override any of
