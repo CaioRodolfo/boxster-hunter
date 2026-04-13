@@ -1,11 +1,17 @@
 """Notification dispatch.
 
-Maps a scored Listing to the right channels per the spec:
+Maps a scored Listing to the right channels:
 
-  GOLD (90+):    Email + Slack + Notion + (optional) SMS
-  STRONG (70+):  Email + Slack + Notion
+  GOLD (90+):    Email + Slack + Notion + SMS
+  STRONG (70+):  Email + Slack + Notion + SMS
   REVIEW (50+):  Notion only
   MARGINAL (<50): nothing (still recorded in SQLite)
+
+The SMS threshold was lowered from GOLD-only to STRONG+ so real candidates
+flagged by the search-index scrapers actually generate alerts. The original
+spec scoped SMS to GOLD on the assumption that listings would routinely score
+90+; in practice search-index scoring caps out lower without a detail-fetch
+pass, so STRONG-tier alerts are the right grain.
 
 All channels are env-var gated; missing creds → log-only no-op so the rest of
 the pipeline still works.
@@ -63,7 +69,6 @@ class Notifier:
         if tier in (GOLD_TIER, STRONG_TIER):
             results["slack"] = self.send_slack(listing)
             results["email"] = self.send_email(listing)
-        if tier == GOLD_TIER:
             results["sms"] = self.send_sms(listing)
 
         return results

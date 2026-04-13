@@ -1,4 +1,4 @@
-"""Shared parsers for forum-style scrapers.
+"""Shared parsers and enrichment helpers for forum-style scrapers.
 
 Two forum engines power the four forum sources:
 
@@ -111,3 +111,18 @@ def _first_year(text: str) -> int | None:
         return None
     m = re.search(r"\b(19|20)\d{2}\b", text)
     return int(m.group(0)) if m else None
+
+
+def extract_first_post_body(html: str | bytes, selector: str) -> str | None:
+    """Return the text of the first post body matching the given selector.
+
+    Used by enrich_description() overrides to skip page chrome (nav, footer,
+    sidebars, "vBulletin Solutions" footer text) and only score against the
+    actual seller pitch. Returns None if no body is found.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    nodes = soup.select(selector)
+    if not nodes:
+        return None
+    text = nodes[0].get_text(" ", strip=True)
+    return text or None

@@ -61,6 +61,14 @@ def setup_logging() -> None:
     )
 
 
+# Listings whose description is shorter than this are considered "shallow"
+# (just the title, no body). For shallow listings the orchestrator fetches the
+# detail page and re-scores against the full body text. Cars & Bids RSS already
+# delivers descriptions an order of magnitude longer than this, so it skips
+# enrichment automatically.
+SHALLOW_DESCRIPTION_THRESHOLD = 200
+
+
 def run(
     db: Database,
     notion: NotionSink,
@@ -70,6 +78,7 @@ def run(
 ) -> HuntStats:
     stats = HuntStats()
     all_listings: list[Listing] = []
+    scraper_by_source = {s.source: s for s in scrapers}
 
     for scraper in scrapers:
         if dry_run_scrapers:
@@ -88,8 +97,24 @@ def run(
     stats.new = len(new_listings)
     log.info("Dedup: %d new of %d total", stats.new, stats.fetched)
 
+    enriched_count = 0
     for listing in new_listings:
         score_listing(listing)
+
+        # Detail-fetch enrichment: shallow listings (forums + Classic.com index
+        # pages) have title-only descriptions. Re-fetch the listing URL, replace
+        # the description with the body text, and re-score. We only do this for
+        # listings that survived the disqualifier filter so we don't waste HTTP
+        # budget on Tiptronics, wrong years, and non-Boxsters.
+        if (
+            listing.tier != "REJECTED"
+            and len(listing.description) < SHALLOW_DESCRIPTION_THRESHOLD
+        ):
+            scraper = scraper_by_source.get(listing.source)
+            if scraper is not None and scraper.enrich_description(listing):
+                enriched_count += 1
+                score_listing(listing)
+
         if listing.tier == "REJECTED":
             stats.rejected += 1
             db.record(listing)
@@ -104,6 +129,9 @@ def run(
         if any(results.values()):
             stats.notifications += 1
         db.record(listing, notion_page_id=page_id)
+
+    if enriched_count:
+        log.info("Enriched %d shallow listings via detail fetch", enriched_count)
 
     log.info(
         "Hunt complete: fetched=%d new=%d rejected=%d notion=%d notify=%d errors=%d",

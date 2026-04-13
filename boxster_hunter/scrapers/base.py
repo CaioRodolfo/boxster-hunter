@@ -66,6 +66,36 @@ class BaseScraper(ABC):
         against committed fixtures with no network access.
         """
 
+    def enrich_description(self, listing: Listing) -> bool:
+        """Fetch the listing's detail page and replace its description.
+
+        Default implementation: GET the listing URL, strip script/style/nav,
+        extract body text, and store the first 8 KB into ``listing.description``.
+        Subclasses can override for site-specific selectors (e.g. grabbing
+        only the first post body on a forum thread).
+
+        Returns True on success, False on any failure. Failures are logged
+        but never raised — enrichment is best-effort and a network blip on
+        one detail page should not poison the rest of the run.
+        """
+        try:
+            resp = self.http_get(listing.url_str)
+            resp.raise_for_status()
+        except Exception:
+            self.log.warning("enrich failed for %s", listing.url_str, exc_info=True)
+            return False
+
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside", "noscript"]):
+            tag.decompose()
+        text = soup.get_text(" ", strip=True)
+        if not text:
+            return False
+        listing.description = text[:8000]
+        return True
+
     @staticmethod
     def now() -> datetime:
         return datetime.now(UTC)

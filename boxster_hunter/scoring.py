@@ -30,9 +30,13 @@ IMS_GENERIC_PATTERNS = [
 ]
 
 SIX_SPEED_PATTERNS = [
-    r"6[-\s]speed\s+manual",
-    r"six[-\s]speed\s+manual",
-    r"6\s*spd\s+manual",
+    # The 986 Boxster S only came in 6-speed manual or 5-speed Tiptronic. The
+    # 5-speed manual was base-Boxster only and is filtered separately. Once
+    # we know it's a 986 S, "6 speed" / "6spd" / "6MT" all unambiguously mean
+    # 6-speed manual — no need to require the "manual" word.
+    r"\b6[-\s]?speed\b",
+    r"\bsix[-\s]?speed\b",
+    r"\b6\s*spd\b",
     r"\b6mt\b",
     r"6\s*speed\s+transaxle",
 ]

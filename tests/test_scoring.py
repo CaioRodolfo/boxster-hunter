@@ -129,6 +129,20 @@ def test_ims_solution_outranks_retrofit():
     assert solution > retrofit > generic
 
 
+def test_six_speed_recognized_without_explicit_manual_word():
+    """Sellers commonly write '6 speed' instead of '6-speed manual'."""
+    cases = [
+        "2004 Porsche Boxster S 3.2L, 6 speed, second owner",
+        "2004 Boxster S, 3.2L, 6spd, low miles",
+        "2003 Boxster S 3.2L six speed",
+        "2003 Boxster S 6mt",
+    ]
+    for desc in cases:
+        listing = make_listing(title="2004 Porsche Boxster S", description=desc)
+        scored = score_listing(listing)
+        assert any("6-speed" in f for f in scored.flags), f"missed: {desc!r}"
+
+
 def test_low_mileage_bonus():
     high = score_listing(
         make_listing(

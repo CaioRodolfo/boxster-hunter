@@ -36,6 +36,14 @@ class ClassicDotComScraper(BaseScraper):
         resp.raise_for_status()
         return self.parse(resp.text)
 
+    def enrich_description(self, listing: Listing) -> bool:
+        # Classic.com vehicle pages are spec-sheet metadata aggregations, not
+        # seller-written descriptions. They have no IMS/color/transmission
+        # detail beyond what's already on the search card. Enriching just
+        # adds noise (breadcrumbs, market data, "vBulletin Solutions"-style
+        # false positives), so we explicitly skip it.
+        return False
+
     def parse(self, payload: str | bytes) -> list[Listing]:
         soup = BeautifulSoup(payload, "lxml")
 

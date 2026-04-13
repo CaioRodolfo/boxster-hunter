@@ -70,14 +70,17 @@ def test_dispatch_gold_hits_all_channels(monkeypatch):
     assert results == {"slack": True, "email": True, "sms": True}
 
 
-def test_dispatch_strong_no_sms(monkeypatch):
+def test_dispatch_strong_includes_sms(monkeypatch):
+    # SMS threshold lowered from GOLD-only to STRONG+ so search-index
+    # candidates actually generate alerts.
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
     n = Notifier()
     results = n.dispatch(_strong())
     assert results["slack"] is True
     assert results["email"] is True
-    assert results["sms"] is False
+    assert results["sms"] is True
 
 
 def test_dispatch_review_silent(monkeypatch):
