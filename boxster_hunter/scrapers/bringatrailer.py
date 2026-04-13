@@ -1,12 +1,15 @@
-"""Cars & Bids scraper.
+"""Bring a Trailer scraper.
 
-Cars & Bids is a pure React SPA — there's no SSR data we can scrape from the
-HTML. They do publish an RSS feed of every active auction, which is exactly
-what we need: title + canonical URL + a long-form description full of details
-the scoring engine can chew on.
+BaT publishes a site-wide WordPress RSS feed at ``/feed/`` containing every
+currently-live and recently-ended auction (~20 items, refreshed hourly per the
+feed's ``sy:updatePeriod``). Each item has a rich HTML description with full
+seller details — no detail-fetch enrichment needed.
 
-The RSS contains every active auction across all makes (~200 at any given
-time), so we filter to "boxster" mentions in the parser.
+**robots.txt compliance:** BaT's robots.txt has ``Disallow: /*/feed/`` which
+blocks subcategory feeds like ``/porsche/boxster/feed/``, but the site-wide
+``/feed/`` at the root is **not** disallowed (no segment before ``/feed/``).
+BaT also sets ``Crawl-delay: 1`` which matches BaseScraper's default rate
+limit, so we're well within their policy.
 """
 
 from __future__ import annotations
@@ -17,11 +20,11 @@ from boxster_hunter.models import Listing
 from boxster_hunter.scrapers._rss_common import first_year, source_id_from_url, strip_html
 from boxster_hunter.scrapers.base import BaseScraper
 
-RSS_URL = "https://carsandbids.com/rss.xml"
+RSS_URL = "https://bringatrailer.com/feed/"
 
 
-class CarsAndBidsScraper(BaseScraper):
-    source = "carsandbids"
+class BringATrailerScraper(BaseScraper):
+    source = "bringatrailer"
 
     def fetch_listings(self) -> list[Listing]:
         resp = self.http_get(RSS_URL)
@@ -33,8 +36,8 @@ class CarsAndBidsScraper(BaseScraper):
         out: list[Listing] = []
         for entry in feed.entries:
             title = entry.get("title", "")
-            # Cars & Bids has all makes — keep only Boxster mentions and let
-            # the scoring engine handle the rest of the spec match.
+            # BaT's feed contains every make — keep only Boxster mentions and
+            # let the scoring engine handle year/trans/IMS/color.
             if "boxster" not in title.lower():
                 continue
             url = entry.get("link") or entry.get("id")

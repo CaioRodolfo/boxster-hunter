@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/">
+<channel>
+	<title>The best vintage and classic cars for sale online | Bring a Trailer</title>
+	<atom:link href="https://bringatrailer.com/feed/" rel="self" type="application/rss+xml" />
+	<link>https://bringatrailer.com</link>
+	<description>Barn finds, rally cars, and needles in the haystack.</description>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	<generator>https://wordpress.org/?v=6.8.5</generator>
+
+	<item>
+		<title>2004 Porsche Boxster S 6-Speed</title>
+		<link>https://bringatrailer.com/listing/2004-porsche-boxster-s-500/</link>
+		<dc:creator><![CDATA[bringatrailer]]></dc:creator>
+		<pubDate>Mon, 13 Apr 2026 14:00:00 +0000</pubDate>
+		<guid isPermaLink="false">https://bringatrailer.com/listing/2004-porsche-boxster-s-500/?announcement=112509000</guid>
+		<description><![CDATA[<p>This 2004 Porsche 986 Boxster S is finished in Lagoon Green Metallic over black leather and is powered by a 3.2-liter flat-six paired with a six-speed manual transaxle. The seller acquired the car in 2019, and work since has included installation of an LN Engineering IMS Solution retrofit with an updated rear main seal, a new clutch, and a full service of the AOS and water pump. It now shows 52k miles. Equipment includes 18" Carrera wheels, a Porsche Communication Management head unit, heated seats, xenon headlights, and a wind deflector. This rare-color Boxster S is now offered in California with comprehensive service records, the owner's manual, two keys, and a clean California title.</p>]]></description>
+	</item>
+
+	<item>
+		<title>1997 Ford F-250 HD XLT 7.5L 4×4 5-Speed at No Reserve</title>
+		<link>https://bringatrailer.com/listing/1997-ford-f-250-361/</link>
+		<dc:creator><![CDATA[bringatrailer]]></dc:creator>
+		<pubDate>Mon, 13 Apr 2026 13:00:00 +0000</pubDate>
+		<guid isPermaLink="false">https://bringatrailer.com/listing/1997-ford-f-250-361/?announcement=112508462</guid>
+		<description><![CDATA[<p>This 1997 Ford F-250 HD XLT regular-cab 4×4 pickup is powered by a 7.5-liter V8 linked to a five-speed manual transmission.</p>]]></description>
+	</item>
+
+	<item>
+		<title>2013 Porsche Boxster</title>
+		<link>https://bringatrailer.com/listing/2013-porsche-boxster-981/</link>
+		<dc:creator><![CDATA[bringatrailer]]></dc:creator>
+		<pubDate>Mon, 13 Apr 2026 12:00:00 +0000</pubDate>
+		<guid isPermaLink="false">https://bringatrailer.com/listing/2013-porsche-boxster-981/?announcement=112508100</guid>
+		<description><![CDATA[<p>This 2013 Porsche 981 Boxster is a base model with the 2.7-liter flat-six and a six-speed PDK dual-clutch transmission.</p>]]></description>
+	</item>
+
+	<item>
+		<title>2021 Ferrari Portofino M</title>
+		<link>https://bringatrailer.com/listing/2021-ferrari-portofino-m-1/</link>
+		<dc:creator><![CDATA[bringatrailer]]></dc:creator>
+		<pubDate>Mon, 13 Apr 2026 11:00:00 +0000</pubDate>
+		<guid isPermaLink="false">https://bringatrailer.com/listing/2021-ferrari-portofino-m-1/?announcement=112507800</guid>
+		<description><![CDATA[<p>This 2021 Ferrari Portofino M finished in Grigio Titanio over Cuoio leather.</p>]]></description>
+	</item>
+</channel>
+</rss>

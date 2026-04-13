@@ -19,6 +19,7 @@ import pytest
 
 from boxster_hunter.models import Listing
 from boxster_hunter.scoring import score_listing
+from boxster_hunter.scrapers.bringatrailer import BringATrailerScraper
 from boxster_hunter.scrapers.carsandbids import CarsAndBidsScraper
 from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
 
@@ -125,3 +126,51 @@ def test_classic_dedupes_repeated_cards(classic_listings):
 def test_classic_titles_mention_boxster(classic_listings):
     for L in classic_listings:
         assert "boxster" in L.title.lower() or "porsche" in L.title.lower()
+
+
+# ---------- Bring a Trailer ----------
+
+@pytest.fixture
+def bat_listings():
+    return BringATrailerScraper().parse(_load("bringatrailer/feed.xml"))
+
+
+def test_bat_filters_to_boxster_titles_only(bat_listings):
+    # Fixture has 4 items: 1 Boxster S (target), 1 Ford F-250, 1 981 Boxster,
+    # 1 Ferrari. The 981 Boxster passes the 'boxster' filter but gets caught
+    # by the year/PDK check downstream. The F-250 and Ferrari should not even
+    # make it out of the parser.
+    titles = [L.title for L in bat_listings]
+    assert all("boxster" in t.lower() for t in titles)
+    assert not any("Ford" in t for t in titles)
+    assert not any("Ferrari" in t for t in titles)
+
+
+def test_bat_2004_boxster_s_scores_gold(bat_listings):
+    target = next(L for L in bat_listings if "2004" in L.title)
+    assert target.source == "bringatrailer"
+    assert target.year == 2004
+    assert target.url_str.startswith("https://bringatrailer.com/listing/")
+    assert target.price_is_auction is True
+
+    scored = score_listing(target)
+    assert scored.tier == "🏆 GOLD"
+    assert scored.score >= 90
+    assert scored.has_ims_solution is True
+    assert scored.color_match["name"] == "Lagoon Green Metallic"
+
+
+def test_bat_2013_boxster_is_rejected_on_year(bat_listings):
+    target = next(L for L in bat_listings if "2013" in L.title)
+    scored = score_listing(target)
+    assert scored.tier == "REJECTED"
+
+
+def test_bat_descriptions_are_text_not_html(bat_listings):
+    for L in bat_listings:
+        assert "<" not in L.description
+
+
+def test_bat_source_ids_are_unique(bat_listings):
+    ids = [L.source_id for L in bat_listings]
+    assert len(ids) == len(set(ids))

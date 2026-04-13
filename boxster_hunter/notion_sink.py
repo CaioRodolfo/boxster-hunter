@@ -22,6 +22,7 @@ NOTION_VERSION = "2022-06-28"
 
 SOURCE_DISPLAY = {
     "carsandbids": "Cars & Bids",
+    "bringatrailer": "Bring a Trailer",
     "classic.com": "Classic.com",
     "craigslist": "Craigslist",
     "pcarmarket": "PCARMARKET",

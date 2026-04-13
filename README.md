@@ -6,6 +6,20 @@ Scrapes a half-dozen sources, scores each listing 0–100 against the target spe
 deduplicates against a local SQLite database, and routes high-quality matches to
 a Notion database with tiered email/Slack notifications.
 
+## Sources
+
+| Source | Strategy | Notes |
+| --- | --- | --- |
+| Bring a Trailer | Site-wide WordPress RSS at `/feed/` | Rich descriptions. `robots.txt` allows `/feed/` (only subcategory feeds are blocked). |
+| Cars & Bids | RSS feed at `/rss.xml` | All makes; filter to Boxster titles. Rich descriptions. |
+| Classic.com | Phoenix LiveView HTML scraping | Price-tracker, not seller listings — no IMS/color body text. GH Actions IPs are sometimes 403'd. |
+| PCARMARKET | JSON API at `/api/auctions/?make=porsche` | Low volume; parser keeps only Boxsters. |
+| 986forum | vBulletin `a[id^="thread_title_"]` + post-body enrichment | Highest quality for this exact car. |
+| Rennlist | vBulletin (same as 986forum) + enrichment | General for-sale forum — lots of 911/Cayman noise that gets filtered. |
+| Planet-9 | XenForo `h3.structItem-title` + `div.bbWrapper` enrichment | Some WTB (want-to-buy) noise. |
+
+Craigslist is intentionally excluded — see `boxster_hunter/scrapers/craigslist.py` for context.
+
 ## Layout
 
 ```

@@ -23,6 +23,7 @@ from boxster_hunter.notion_sink import NotionSink
 from boxster_hunter.scoring import score_listing
 from boxster_hunter.scrapers.base import BaseScraper
 from boxster_hunter.scrapers.boxster_forum import BoxsterForumScraper
+from boxster_hunter.scrapers.bringatrailer import BringATrailerScraper
 from boxster_hunter.scrapers.carsandbids import CarsAndBidsScraper
 from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
@@ -32,9 +33,10 @@ from boxster_hunter.scrapers.rennlist import RennlistScraper
 log = logging.getLogger("boxster.main")
 
 # Craigslist is intentionally absent — see scrapers/craigslist.py for the
-# explanation. Six active sources is the right number for now.
+# explanation. Seven active sources.
 ALL_SCRAPERS: list[type[BaseScraper]] = [
     CarsAndBidsScraper,
+    BringATrailerScraper,
     ClassicDotComScraper,
     PCarMarketScraper,
     BoxsterForumScraper,
