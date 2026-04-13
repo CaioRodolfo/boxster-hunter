@@ -136,7 +136,12 @@ def main(argv: list[str] | None = None) -> int:
     scrapers = [cls() for cls in ALL_SCRAPERS]
 
     stats = run(db, notion, notifier, scrapers, dry_run_scrapers=args.dry_run)
-    return 0 if stats.errors == 0 else 1
+    # Exit non-zero only if *every* source failed — a partial outage (one
+    # source blocked by IP, one temporarily returning 5xx) is normal and
+    # shouldn't trigger an hourly failure notification. The per-scraper
+    # errors are already logged above.
+    all_sources_failed = stats.errors > 0 and stats.fetched == 0
+    return 1 if all_sources_failed else 0
 
 
 if __name__ == "__main__":
