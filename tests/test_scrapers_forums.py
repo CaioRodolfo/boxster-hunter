@@ -15,6 +15,7 @@ from boxster_hunter.scrapers.boxster_forum import BoxsterForumScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
 from boxster_hunter.scrapers.planet9 import Planet9Scraper
 from boxster_hunter.scrapers.rennlist import RennlistScraper
+from boxster_hunter.scrapers.yotatech import YotaTechScraper
 from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -159,3 +160,30 @@ def test_audiworld_uses_vbulletin_thread_id_pattern(audiworld_listings):
     ids = [L.source_id for L in audiworld_listings]
     assert all(i.isdigit() for i in ids)
     assert len(ids) == len(set(ids))
+
+
+# ---------- YotaTech ----------
+
+@pytest.fixture
+def yotatech_listings():
+    return YotaTechScraper().parse(_load("yotatech/marketplace.html"))
+
+
+def test_yotatech_finds_threads(yotatech_listings):
+    # f108 (Vehicles - Trailers Complete) typically has 100+ threads.
+    assert len(yotatech_listings) >= 10
+
+
+def test_yotatech_listings_well_formed(yotatech_listings):
+    for L in yotatech_listings:
+        assert L.source == "yotatech"
+        assert L.url_str.startswith("https://www.yotatech.com/forums/")
+        assert L.source_id.isdigit()
+        assert L.title
+
+
+def test_yotatech_subforum_has_4runner_listings(yotatech_listings):
+    """The classifieds carry all Toyota vehicles — confirm at least some
+    4Runner mentions exist so we know the source is feeding the right target."""
+    has_4runner = any("4runner" in L.title.lower() for L in yotatech_listings)
+    assert has_4runner

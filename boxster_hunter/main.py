@@ -41,13 +41,16 @@ from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
 from boxster_hunter.scrapers.planet9 import Planet9Scraper
 from boxster_hunter.scrapers.rennlist import RennlistScraper
+from boxster_hunter.scrapers.yotatech import YotaTechScraper
 from boxster_hunter.targets import ALL_TARGETS
 from boxster_hunter.targets.base import TargetConfig
 
 log = logging.getLogger("boxster.main")
 
-# Craigslist + AudiZine are intentionally absent — see their scraper modules
-# for context (both are Cloudflare-gated and require a residential proxy).
+# Craigslist, AudiZine, and toyota-4runner.org are intentionally absent —
+# all three are Cloudflare-gated at the WAF layer and would need a residential
+# proxy or stealth headless browser to access from cloud IPs. See the
+# respective scraper stubs (where applicable) for context.
 ALL_SCRAPERS: list[type[BaseScraper]] = [
     CarsAndBidsScraper,
     BringATrailerScraper,
@@ -57,6 +60,7 @@ ALL_SCRAPERS: list[type[BaseScraper]] = [
     RennlistScraper,
     Planet9Scraper,
     AudiWorldScraper,
+    YotaTechScraper,
 ]
 
 

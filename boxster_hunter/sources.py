@@ -15,6 +15,7 @@ SOURCE_DISPLAY: dict[str, str] = {
     "planet9": "Planet-9",
     "audiworld": "AudiWorld",
     "audizine": "AudiZine",
+    "yotatech": "YotaTech",
 }
 
 

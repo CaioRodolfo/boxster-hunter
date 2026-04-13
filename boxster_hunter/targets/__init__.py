@@ -15,16 +15,19 @@ from boxster_hunter.targets.base import (
     match_color,
 )
 from boxster_hunter.targets.porsche_986_boxster_s import TARGET as PORSCHE_986_BOXSTER_S
+from boxster_hunter.targets.toyota_4runner_4th_gen import TARGET as TOYOTA_4RUNNER_4TH_GEN
 
 ALL_TARGETS: list[TargetConfig] = [
     PORSCHE_986_BOXSTER_S,
     AUDI_S3_8V_FACELIFT,
+    TOYOTA_4RUNNER_4TH_GEN,
 ]
 
 __all__ = [
     "ALL_TARGETS",
     "PORSCHE_986_BOXSTER_S",
     "AUDI_S3_8V_FACELIFT",
+    "TOYOTA_4RUNNER_4TH_GEN",
     "TargetConfig",
     "Disqualifier",
     "ScoringRule",

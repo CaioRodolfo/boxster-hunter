@@ -107,10 +107,38 @@ def _xenforo_tid(href: str) -> str:
 
 
 def _first_year(text: str) -> int | None:
+    """Best-effort year extraction from a listing title.
+
+    Forum titles are messy. Sellers write any of:
+
+      * "2008 Toyota 4Runner" — clean 4-digit year (preferred form)
+      * "19854runner $12000" — 4-digit year mashed against the model name
+      * "85 4runner" — 2-digit year at title start
+      * "'90 4runner" — 2-digit year with leading apostrophe
+      * "90' 4runner" — 2-digit year with trailing apostrophe
+      * "99 Limited 4runner|Tucson, AZ" — 2-digit at start, model later
+
+    We try those forms in order; the first hit wins. If nothing matches,
+    return None and let downstream filters do their best without a year.
+    """
     if not text:
         return None
+    # 1) Clean 4-digit year somewhere in the text
     m = re.search(r"\b(19|20)\d{2}\b", text)
-    return int(m.group(0)) if m else None
+    if m:
+        return int(m.group(0))
+    # 2) 4-digit year mashed against the next char without whitespace
+    # (e.g. "19854runner" → 1985). The (19|20)\d{2} prefix prevents bare
+    # 4-digit numbers like "12000" from matching.
+    m = re.search(r"(19|20)\d{2}", text)
+    if m:
+        return int(m.group(0))
+    # 3) 2-digit year at start of title (with optional surrounding apostrophes)
+    m = re.match(r"['\s]*(\d{2})['\s]", text.strip())
+    if m:
+        yy = int(m.group(1))
+        return 2000 + yy if yy < 30 else 1900 + yy
+    return None
 
 
 def extract_first_post_body(html: str | bytes, selector: str) -> str | None:

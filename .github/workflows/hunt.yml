@@ -37,11 +37,13 @@ jobs:
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           # Per-target Notion databases — see boxster_hunter/targets/<target>.py
-          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}            # 986 Boxster S
-          NOTION_DATABASE_ID_S3: ${{ secrets.NOTION_DATABASE_ID_S3 }}      # Audi S3 8V facelift
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}                  # 986 Boxster S
+          NOTION_DATABASE_ID_S3: ${{ secrets.NOTION_DATABASE_ID_S3 }}            # Audi S3 8V facelift
+          NOTION_DATABASE_ID_4RUNNER: ${{ secrets.NOTION_DATABASE_ID_4RUNNER }}  # 4th gen 4Runner
           # Per-target Slack channels — one webhook per target's slack channel
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}              # Boxster channel
-          SLACK_WEBHOOK_URL_S3: ${{ secrets.SLACK_WEBHOOK_URL_S3 }}        # S3 channel (set when ready)
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}                    # Boxster channel
+          SLACK_WEBHOOK_URL_S3: ${{ secrets.SLACK_WEBHOOK_URL_S3 }}              # S3 channel
+          SLACK_WEBHOOK_URL_4RUNNER: ${{ secrets.SLACK_WEBHOOK_URL_4RUNNER }}    # 4Runner channel
           # Optional cross-target channels
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
           ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
