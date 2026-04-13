@@ -98,6 +98,12 @@ class TargetConfig:
     service_records_keywords: tuple[str, ...] = ()
     service_records_points: int = 5
 
+    # Per-target tier thresholds — (gold, strong, review). Defaults match the
+    # original spec: 90/70/50. Lower a target's review threshold to widen its
+    # notification net; useful for hunts where the spec is hard to satisfy
+    # automatically and the user would rather review more candidates.
+    tier_thresholds: tuple[int, int, int] = (90, 70, 50)
+
     # Output destinations — env var *names*, not the secrets themselves.
     # The orchestrator looks them up at runtime so we don't have to bake
     # secrets into Python code.

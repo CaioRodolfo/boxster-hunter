@@ -330,4 +330,11 @@ TARGET = TargetConfig(
     slack_webhook_env="SLACK_WEBHOOK_URL_4RUNNER",
     build_notion_properties=_build_notion_properties,
     notion_page_title=_page_title,
+    # Lowered REVIEW threshold to 0 for the 4Runner hunt: rust / timing /
+    # provenance signals are often missing from listings even on solid cars,
+    # and the user wants every non-rejected 4Runner pushed to Slack so they
+    # can decide manually. Threshold 0 means any listing that survives the
+    # disqualifier filter (year, generation, salvage title) becomes REVIEW —
+    # the only thing that stays silent is a REJECTED listing.
+    tier_thresholds=(90, 70, 0),
 )

@@ -85,7 +85,7 @@ def score_listing(listing: Listing, target: TargetConfig) -> Listing:
         flags.append(f"📉 Low miles ({listing.mileage:,})")
 
     listing.score = score
-    listing.tier = _tier_for(score)
+    listing.tier = _tier_for(score, target)
     listing.flags = flags
     return listing
 
@@ -97,11 +97,12 @@ def _reject(listing: Listing, reason: str) -> Listing:
     return listing
 
 
-def _tier_for(score: int) -> str:
-    if score >= 90:
+def _tier_for(score: int, target: TargetConfig) -> str:
+    gold, strong, review = target.tier_thresholds
+    if score >= gold:
         return "🏆 GOLD"
-    if score >= 70:
+    if score >= strong:
         return "🥇 STRONG"
-    if score >= 50:
+    if score >= review:
         return "🥈 REVIEW"
     return "🥉 MARGINAL"
