@@ -1,47 +1,71 @@
-# 986 Boxster S Hunter
+# Car Hunter
 
-Automated listing aggregator and scoring engine for finding the right 2003–2004
-Porsche Boxster S (3.2L, 6-speed manual, IMS bearing addressed, target colors).
-Scrapes a half-dozen sources, scores each listing 0–100 against the target spec,
-deduplicates against a local SQLite database, and routes high-quality matches to
-a Notion database with tiered email/Slack notifications.
+Automated multi-target car listing aggregator. One cron, many cars.
+
+Each "target" is a Python config file under `boxster_hunter/targets/` that
+fully describes one car-shaped thing the system hunts for: which scrapers it
+consumes, which year range counts, the disqualifier patterns, the positive
+scoring rules, the color map, the Notion database to write into, and the
+Slack channel to ping. The scoring engine is generic — it applies whatever
+rules a target gives it. Adding a third car is "write a new target file."
+
+## Active targets
+
+| Target | What we hunt for | Notion DB env var | Slack env var |
+| --- | --- | --- | --- |
+| `porsche_986_boxster_s` | 2003-2004 Boxster S, 6-speed manual, IMS-addressed, target color | `NOTION_DATABASE_ID` | `SLACK_WEBHOOK_URL` |
+| `audi_s3_8v_facelift` | 2017-2020 Audi S3 (8V facelift), Premium Plus / Prestige, B&O sound, documented Haldex maintenance, "cool" color | `NOTION_DATABASE_ID_S3` | `SLACK_WEBHOOK_URL_S3` |
 
 ## Sources
 
 | Source | Strategy | Notes |
 | --- | --- | --- |
-| Bring a Trailer | Site-wide WordPress RSS at `/feed/` | Rich descriptions. `robots.txt` allows `/feed/` (only subcategory feeds are blocked). |
-| Cars & Bids | RSS feed at `/rss.xml` | All makes; filter to Boxster titles. Rich descriptions. |
-| Classic.com | Phoenix LiveView HTML scraping | Price-tracker, not seller listings — no IMS/color body text. GH Actions IPs are sometimes 403'd. |
-| PCARMARKET | JSON API at `/api/auctions/?make=porsche` | Low volume; parser keeps only Boxsters. |
-| 986forum | vBulletin `a[id^="thread_title_"]` + post-body enrichment | Highest quality for this exact car. |
-| Rennlist | vBulletin (same as 986forum) + enrichment | General for-sale forum — lots of 911/Cayman noise that gets filtered. |
-| Planet-9 | XenForo `h3.structItem-title` + `div.bbWrapper` enrichment | Some WTB (want-to-buy) noise. |
+| Bring a Trailer | Site-wide WordPress RSS at `/feed/` | Rich descriptions. `robots.txt` allows `/feed/`. |
+| Cars & Bids | RSS feed at `/rss.xml` | All makes; orchestrator routes to whichever target's title keyword matches. |
+| Classic.com | Phoenix LiveView HTML scraping | Price-tracker, not seller listings — no body text. GH Actions IPs sometimes 403. |
+| PCARMARKET | JSON API at `/api/auctions/?make=porsche` | Porsche-only. |
+| 986forum | vBulletin `a[id^="thread_title_"]` + post-body enrichment | Porsche 986 only. |
+| Rennlist | vBulletin (same as 986forum) + enrichment | Porsche general for-sale forum. |
+| Planet-9 | XenForo `h3.structItem-title` + `div.bbWrapper` enrichment | Porsche only. |
+| AudiWorld | JSON-LD `Car` schema embedded in `.shelf-item` divs | Audi-specific. Their marketplace publishes structured data per listing. |
 
-Craigslist is intentionally excluded — see `boxster_hunter/scrapers/craigslist.py` for context.
+**Excluded** — Cloudflare-gated, would need a residential proxy or headless browser:
+* Craigslist (RSS 403'd from cloud IPs, HTML fallback empty without JS)
+* AudiZine (full Cloudflare challenge on every URL, plus explicit anti-AI robots.txt)
+* AutoTrader, Cars.com, CarGurus, CarMax (all behind aggressive bot detection)
+
+eBay Motors has a real public API and would be a clean add — deferred for now.
 
 ## Layout
 
 ```
 boxster_hunter/
-  models.py       Pydantic v2 Listing model
-  colors.py       Target color codes + matching
-  scoring.py      Scoring engine (0-100, tier assignment)
-  db.py           SQLite dedup layer
-  notion_sink.py  Notion API client
-  notifier.py     Email + Slack dispatch
-  main.py         Orchestrator
+  models.py             Pydantic v2 Listing model
+  scoring.py            Generic scoring engine (knows nothing about specific cars)
+  db.py                 SQLite dedup layer
+  notion_sink.py        Generic Notion API client (target-aware)
+  notifier.py           Generic Slack/email/SMS dispatch (target-aware)
+  main.py               Orchestrator — fetch once, score per target, dispatch per target
+  sources.py            Source display name map
+  targets/
+    base.py             TargetConfig dataclass + match_color helper
+    porsche_986_boxster_s.py
+    audi_s3_8v_facelift.py
   scrapers/
-    base.py       BaseScraper ABC
+    base.py             BaseScraper ABC + default enrich_description
+    _rss_common.py      Shared helpers for Cars & Bids + BaT
+    _forum_common.py    Shared helpers for vBulletin + XenForo
     carsandbids.py
+    bringatrailer.py
     classic_dot_com.py
-    craigslist.py
     pcarmarket.py
     boxster_forum.py
     rennlist.py
     planet9.py
+    audiworld.py
+    craigslist.py       Stub — see module docstring
 tests/
-  fixtures/       Saved HTML/JSON for parser tests
+  fixtures/             Saved HTML/JSON for parser tests
 ```
 
 ## Quickstart
@@ -52,92 +76,59 @@ uv run pytest
 uv run ruff check .
 ```
 
-To run the hunter (dry-run, no env vars required):
+Dry run (no env vars required):
 
 ```bash
 uv run python -m boxster_hunter.main --dry-run
 ```
 
-To run live:
+Live run:
 
 ```bash
 cp .env.example .env
-# Fill in NOTION_API_KEY, NOTION_DATABASE_ID, etc.
+# Fill in NOTION_API_KEY plus the per-target *_DATABASE_ID and *_WEBHOOK_URL vars
 uv run python -m boxster_hunter.main
 ```
 
 ## Configuration
 
-All integrations are env-var gated. If a credential is missing, that sink
-silently no-ops and logs what it *would* have sent. The hunter still runs end
-to end against scraping + scoring + SQLite, so you can develop and test the
-core pipeline without any third-party accounts.
+All integrations are env-var gated. Missing creds → log-only no-op so the
+pipeline still runs end to end. Per-target env var names live on the
+`TargetConfig` instance for each target — the orchestrator looks them up at
+runtime, so you never have to edit Python to add a new car's secrets.
 
-| Env var | Required | Purpose |
+| Env var | Required by | Purpose |
 | --- | --- | --- |
-| `NOTION_API_KEY` | live runs | Notion integration token |
-| `NOTION_DATABASE_ID` | live runs | Target database for listings (the live "986 Hunt" DB has id `ee4dfdd8471d4d9e9c0bfa7144f11bd1`) |
-| `SLACK_WEBHOOK_URL` | optional | Incoming webhook for STRONG+ alerts |
-| `SENDGRID_API_KEY` | optional | Email alerts for STRONG+ |
-| `ALERT_EMAIL` | optional | Recipient for email alerts |
-| `BOXSTER_DB_PATH` | optional | SQLite path (default `boxster.db`) |
+| `NOTION_API_KEY` | live runs | Single Notion integration token (shared across targets) |
+| `NOTION_DATABASE_ID` | Boxster | "986 Hunt" database id `ee4dfdd8471d4d9e9c0bfa7144f11bd1` |
+| `NOTION_DATABASE_ID_S3` | S3 | "8V S3 Hunt" database id `90ab1bf07cd142cf98408b01e6a98139` |
+| `SLACK_WEBHOOK_URL` | optional | Slack channel for Boxster STRONG+ alerts |
+| `SLACK_WEBHOOK_URL_S3` | optional | Slack channel for S3 STRONG+ alerts |
+| `SENDGRID_API_KEY` + `ALERT_EMAIL` | optional | Cross-target email alerts |
+| `TWILIO_*` | optional | Cross-target SMS alerts |
+| `BOXSTER_DB_PATH` | optional | SQLite dedup path (default `boxster.db`) |
+
+## Adding a new target
+
+1. Write `boxster_hunter/targets/{your_car}.py` defining `TARGET = TargetConfig(...)`.
+2. Add it to `ALL_TARGETS` in `boxster_hunter/targets/__init__.py`.
+3. Create a Notion database for the target (any schema you want; the target's
+   `build_notion_properties` function controls the column mapping).
+4. Add a Slack webhook env var name on the target and set the secret.
+5. Run the suite — no engine changes needed.
 
 ## Known limitations
 
-* **Search-index scoring is shallow.** All six scrapers parse list/index pages,
-  which give titles + structured fields but no long-form descriptions. The
-  scoring engine looks for IMS / 6-speed / color mentions in the text, so most
-  listings score MARGINAL until a human follows the link. A v2 enhancement is
-  to fetch each candidate's detail page and re-score against the full body.
-* **Cars & Bids RSS** contains all current auctions (~200 across all makes);
-  the parser keeps only "boxster" titles. A 986-only filter isn't possible
-  without fetching detail pages.
-* **PCARMARKET** filters by `make=porsche` server-side and the parser keeps
-  only `boxster` titles. The result count depends on what's currently active.
-* **Craigslist** is dropped — see `boxster_hunter/scrapers/craigslist.py` for
-  the full explanation. RSS is 403'd, the HTML fallback only shows "see also"
-  suggestions, and the runtime is GitHub Actions which is on AWS IPs that
-  Craigslist explicitly blocks.
+* **Search-index scoring is shallow.** Some scrapers (Classic.com, vBulletin
+  forums on the listing index) only return titles. The orchestrator runs a
+  detail-fetch enrichment pass for those, but Cloudflare/IP blocks on detail
+  pages can prevent enrichment from succeeding.
+* **GitHub Actions IPs are sometimes blocked** by Cloudflare on Classic.com.
+  The orchestrator's exit code tolerates per-source failures so the cron
+  doesn't spam you with failure notifications.
 
-## Defaults / open questions resolved
+## Schedule
 
-The spec's Section 16 open questions are resolved as follows. Override any of
-these by editing the relevant module:
-
-- **Persistent SQLite**: local file at `boxster.db`. For GitHub Actions, the
-  workflow uses `actions/cache` with the run number as the key — the file is
-  best-effort only. Move to Turso (or commit-back) when this becomes painful.
-- **Rate limiting**: 1 request/second per source via `BaseScraper`. Tune in
-  `boxster_hunter/scrapers/base.py`.
-- **User-agent rotation**: enabled by default; rotates through a small pool of
-  desktop browser UAs in `BaseScraper`.
-- **Geographic filter**: not a hard reject. Listings far from Wilmington, DE
-  still flow through scoring; consider filtering in Notion views.
-- **Price ceiling**: not a hard reject. Listings over $25K still flow through;
-  use the score for filtering.
-
-## Development
-
-```bash
-uv sync --extra dev
-uv run pytest -v
-uv run ruff check .
-uv run ruff format .
-```
-
-Tests are pure unit tests against committed fixtures — no live HTTP. To capture
-fresh fixtures from a real source, save the response body under
-`tests/fixtures/<source>/<name>.{html,json}` and add a parser test for it.
-
-## Architecture
-
-See the spec page in Notion for the full architecture diagram and rationale.
-The high-level flow:
-
-```
-scrapers → parser → SQLite dedup → scoring → tier dispatch
-                                                 ├─ Notion (always for ≥REVIEW)
-                                                 ├─ Email  (STRONG+)
-                                                 ├─ Slack  (STRONG+)
-                                                 └─ SMS    (GOLD only, optional)
-```
+Cron runs hourly from 8am-8pm Eastern. See `.github/workflows/hunt.yml`.
+GitHub cron is UTC-only and does not observe DST — when EDT → EST in
+November, swap the cron expression as documented in the workflow file.

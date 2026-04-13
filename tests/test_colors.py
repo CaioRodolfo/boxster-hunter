@@ -1,8 +1,14 @@
-"""Color matcher tests. Every target variant should match; false positives should not."""
+"""Color matcher tests for the Boxster target color map. Every target variant
+should match; false positives should not."""
 
 import pytest
 
-from boxster_hunter.colors import TARGET_COLORS, match_color
+from boxster_hunter.targets.base import match_color as _match_color
+from boxster_hunter.targets.porsche_986_boxster_s import COLORS as TARGET_COLORS
+
+
+def match_color(text):
+    return _match_color(text, TARGET_COLORS)
 
 
 @pytest.mark.parametrize(

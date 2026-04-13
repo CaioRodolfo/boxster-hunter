@@ -1,7 +1,13 @@
 """Scoring engine tests. One fixture per tier; rejects covered separately."""
 
-from boxster_hunter.scoring import score_listing
+from boxster_hunter.scoring import score_listing as _score_listing
+from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
 from tests.conftest import make_listing
+
+
+def score_listing(listing):
+    """Test alias: scores against the Boxster target. Phase 1 backward-compat."""
+    return _score_listing(listing, PORSCHE_986_BOXSTER_S)
 
 
 def test_gold_tier_ims_solution_six_speed_lagoon_green():

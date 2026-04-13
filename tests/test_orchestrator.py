@@ -1,7 +1,7 @@
 """End-to-end orchestrator test using fake scrapers and dry-run sinks.
 
-This is the integration test from the spec: scored listings flow through dedup
-and a second run should produce zero new listings.
+These tests cover the multi-target orchestrator: scrapers fetch once, listings
+flow through dedup + enrichment + per-target scoring + per-target dispatch.
 """
 
 import json
@@ -13,8 +13,21 @@ from boxster_hunter.notifier import Notifier
 from boxster_hunter.notion_sink import NotionSink
 from boxster_hunter.scrapers.base import BaseScraper
 from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
+from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
+from boxster_hunter.targets.base import TargetConfig
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+BOXSTER = PORSCHE_986_BOXSTER_S
+BOXSTER_TARGETS = [BOXSTER]
+
+
+def _boxster_pipeline(tmp_path) -> tuple[Database, list[TargetConfig], dict, dict]:
+    """Build a single-target dry-run pipeline (Boxster only) for tests."""
+    db = Database(tmp_path / "hunt.db")
+    sinks = {BOXSTER.target_id: NotionSink(target=BOXSTER)}
+    notifiers = {BOXSTER.target_id: Notifier(target=BOXSTER)}
+    return db, BOXSTER_TARGETS, sinks, notifiers
 
 
 class FakeClassic(BaseScraper):
@@ -45,26 +58,22 @@ def test_orchestrator_end_to_end_dedup(tmp_path, monkeypatch):
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
 
-    db = Database(tmp_path / "hunt.db")
-    notion = NotionSink()  # dry-run
-    notifier = Notifier()  # dry-run
+    db, targets, sinks, notifiers = _boxster_pipeline(tmp_path)
     scraper = FakeClassic()
 
-    # First run: process every listing in the fixture
-    stats1 = run(db, notion, notifier, [scraper])
+    stats1 = run(db, targets, sinks, notifiers, [scraper])
     assert stats1.fetched > 0
     assert stats1.new == stats1.fetched
     assert stats1.errors == 0
-    # Notion pages = anything not REJECTED and not MARGINAL
-    assert stats1.notion_pages >= 0
-    assert stats1.notion_pages + stats1.rejected <= stats1.fetched
+    boxster_stats = stats1.per_target[BOXSTER.target_id]
+    assert boxster_stats.notion_pages + boxster_stats.rejected <= stats1.fetched
 
-    # Second run: same listings, dedup should report zero new
-    stats2 = run(db, notion, notifier, [scraper])
+    # Second run: dedup should report zero new
+    stats2 = run(db, targets, sinks, notifiers, [scraper])
     assert stats2.fetched == stats1.fetched
     assert stats2.new == 0
-    assert stats2.notion_pages == 0
-    assert stats2.notifications == 0
+    assert stats2.per_target[BOXSTER.target_id].notion_pages == 0
+    assert stats2.per_target[BOXSTER.target_id].notifications == 0
 
 
 def test_orchestrator_handles_scraper_failure(tmp_path, monkeypatch):
@@ -80,12 +89,9 @@ def test_orchestrator_handles_scraper_failure(tmp_path, monkeypatch):
         def parse(self, payload):
             return []
 
-    db = Database(tmp_path / "hunt.db")
-    notion = NotionSink()
-    notifier = Notifier()
+    db, targets, sinks, notifiers = _boxster_pipeline(tmp_path)
     healthy = FakeClassic()
-    stats = run(db, notion, notifier, [BrokenScraper(), healthy])
-    # One scraper crashed but the other still produced results
+    stats = run(db, targets, sinks, notifiers, [BrokenScraper(), healthy])
     assert stats.errors == 1
     assert stats.fetched > 0
 
@@ -102,15 +108,12 @@ def test_dry_run_skips_fetching(tmp_path, monkeypatch):
         def parse(self, payload):
             return []
 
-    db = Database(tmp_path / "hunt.db")
-    notion = NotionSink()
-    notifier = Notifier()
-    stats = run(db, notion, notifier, [TripWire()], dry_run_scrapers=True)
+    db, targets, sinks, notifiers = _boxster_pipeline(tmp_path)
+    stats = run(db, targets, sinks, notifiers, [TripWire()], dry_run_scrapers=True)
     assert stats.fetched == 0
 
 
 def test_pcarmarket_fixture_is_valid_json():
-    # Sanity check that the PCARMARKET API fixture parses cleanly.
     data = json.loads((FIXTURES / "pcarmarket" / "api.json").read_text())
     assert "results" in data
 
@@ -129,8 +132,6 @@ def test_enrichment_promotes_shallow_listing(tmp_path, monkeypatch):
         source = "stub"
 
         def fetch_listings(self):
-            # One shallow listing: title only, looks like 30 points (year ok,
-            # 6-speed in title, no IMS) — should land MARGINAL pre-enrichment.
             return [
                 Listing(
                     source=self.source,
@@ -147,7 +148,6 @@ def test_enrichment_promotes_shallow_listing(tmp_path, monkeypatch):
             return []
 
         def enrich_description(self, listing):
-            # Simulate a detail fetch that uncovers IMS Solution + color.
             listing.description = (
                 "Long-form body: this 2004 Boxster S has had the LN Engineering "
                 "IMS Solution installed by a Porsche specialist. 6-speed manual. "
@@ -155,14 +155,14 @@ def test_enrichment_promotes_shallow_listing(tmp_path, monkeypatch):
             )
             return True
 
-    db = Database(tmp_path / "hunt.db")
-    notion = NotionSink()
-    notifier = Notifier()
-    stats = run(db, notion, notifier, [StubScraper()])
+    db, targets, sinks, notifiers = _boxster_pipeline(tmp_path)
+    stats = run(db, targets, sinks, notifiers, [StubScraper()])
 
     assert stats.fetched == 1
-    assert stats.notion_pages == 1
-    assert stats.notifications == 1
+    assert stats.enriched == 1
+    boxster = stats.per_target[BOXSTER.target_id]
+    assert boxster.notion_pages == 1
+    assert boxster.notifications == 1
 
 
 def test_enrichment_skipped_for_already_rich_listings(tmp_path, monkeypatch):
@@ -189,7 +189,7 @@ def test_enrichment_skipped_for_already_rich_listings(tmp_path, monkeypatch):
                     first_seen=datetime.now(UTC),
                     last_updated=datetime.now(UTC),
                     title="2004 Porsche Boxster S",
-                    description="x" * 500,  # already rich
+                    description="x" * 500,
                 )
             ]
 
@@ -200,6 +200,6 @@ def test_enrichment_skipped_for_already_rich_listings(tmp_path, monkeypatch):
             enrich_calls["count"] += 1
             return True
 
-    db = Database(tmp_path / "hunt.db")
-    run(db, NotionSink(), Notifier(), [RichScraper()])
+    db, targets, sinks, notifiers = _boxster_pipeline(tmp_path)
+    run(db, targets, sinks, notifiers, [RichScraper()])
     assert enrich_calls["count"] == 0

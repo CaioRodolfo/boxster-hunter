@@ -1,4 +1,4 @@
-"""Notification dispatch.
+"""Notification dispatch. Generic, target-aware.
 
 Maps a scored Listing to the right channels:
 
@@ -7,11 +7,12 @@ Maps a scored Listing to the right channels:
   REVIEW (50+):  Notion only
   MARGINAL (<50): nothing (still recorded in SQLite)
 
-The SMS threshold was lowered from GOLD-only to STRONG+ so real candidates
-flagged by the search-index scrapers actually generate alerts. The original
-spec scoped SMS to GOLD on the assumption that listings would routinely score
-90+; in practice search-index scoring caps out lower without a detail-fetch
-pass, so STRONG-tier alerts are the right grain.
+A single ``Notifier`` instance is bound to one ``TargetConfig`` and reads the
+target's ``slack_webhook_env`` to find its destination webhook. Email + SMS
+share globally-named env vars across targets (one mailbox, one phone number)
+since users typically don't want a different inbox per car. If you do want
+that, swap ``ALERT_EMAIL`` / ``TWILIO_*`` for per-target env var names on the
+target's TargetConfig.
 
 All channels are env-var gated; missing creds → log-only no-op so the rest of
 the pipeline still works.
@@ -25,6 +26,7 @@ import os
 import requests
 
 from boxster_hunter.models import Listing
+from boxster_hunter.targets.base import TargetConfig
 
 log = logging.getLogger("boxster.notify")
 
@@ -36,6 +38,7 @@ REVIEW_TIER = "🥈 REVIEW"
 class Notifier:
     def __init__(
         self,
+        target: TargetConfig,
         slack_webhook: str | None = None,
         sendgrid_api_key: str | None = None,
         alert_email: str | None = None,
@@ -46,7 +49,8 @@ class Notifier:
         twilio_to: str | None = None,
         session: requests.Session | None = None,
     ):
-        self.slack_webhook = slack_webhook or os.environ.get("SLACK_WEBHOOK_URL")
+        self.target = target
+        self.slack_webhook = slack_webhook or os.environ.get(target.slack_webhook_env)
         self.sendgrid_api_key = sendgrid_api_key or os.environ.get("SENDGRID_API_KEY")
         self.alert_email = alert_email or os.environ.get("ALERT_EMAIL")
         self.alert_from_email = (
@@ -59,10 +63,7 @@ class Notifier:
         self.session = session or requests.Session()
 
     def dispatch(self, listing: Listing) -> dict[str, bool]:
-        """Send notifications appropriate to the listing's tier.
-
-        Returns a dict of {channel: sent_or_dryrun} for testability.
-        """
+        """Send notifications appropriate to the listing's tier."""
         tier = listing.tier
         results = {"slack": False, "email": False, "sms": False}
 
@@ -76,9 +77,9 @@ class Notifier:
     # ---------- Slack ----------
 
     def send_slack(self, listing: Listing) -> bool:
-        text = format_slack_message(listing)
+        text = format_slack_message(listing, self.target)
         if not self.slack_webhook:
-            log.info("[dry-run] Slack: %s", text)
+            log.info("[dry-run] %s Slack: %s", self.target.target_id, text)
             return True
         resp = self.session.post(self.slack_webhook, json={"text": text}, timeout=10)
         if not resp.ok:
@@ -89,9 +90,9 @@ class Notifier:
     # ---------- Email (SendGrid) ----------
 
     def send_email(self, listing: Listing) -> bool:
-        subject, body = format_email(listing)
+        subject, body = format_email(listing, self.target)
         if not (self.sendgrid_api_key and self.alert_email):
-            log.info("[dry-run] Email to %s: %s", self.alert_email, subject)
+            log.info("[dry-run] %s Email to %s: %s", self.target.target_id, self.alert_email, subject)
             return True
         payload = {
             "personalizations": [{"to": [{"email": self.alert_email}], "subject": subject}],
@@ -115,9 +116,12 @@ class Notifier:
     # ---------- SMS (Twilio) ----------
 
     def send_sms(self, listing: Listing) -> bool:
-        body = f"🏆 GOLD Boxster: {listing.title} (score {listing.score}) {listing.url_str}"
+        body = (
+            f"{listing.tier} {self.target.emoji} {listing.title} "
+            f"(score {listing.score}) {listing.url_str}"
+        )
         if not (self.twilio_sid and self.twilio_token and self.twilio_from and self.twilio_to):
-            log.info("[dry-run] SMS to %s: %s", self.twilio_to, body)
+            log.info("[dry-run] %s SMS to %s: %s", self.target.target_id, self.twilio_to, body)
             return True
         url = f"https://api.twilio.com/2010-04-01/Accounts/{self.twilio_sid}/Messages.json"
         resp = self.session.post(
@@ -132,9 +136,10 @@ class Notifier:
         return True
 
 
-def format_slack_message(listing: Listing) -> str:
+def format_slack_message(listing: Listing, target: TargetConfig | None = None) -> str:
+    prefix = f"{target.emoji} " if target else ""
     parts = [
-        f"*{listing.tier}* — {listing.title}",
+        f"*{listing.tier}* — {prefix}{listing.title}",
         f"Score: *{listing.score}*  |  Source: {listing.source}",
     ]
     if listing.price:
@@ -149,8 +154,9 @@ def format_slack_message(listing: Listing) -> str:
     return "\n".join(parts)
 
 
-def format_email(listing: Listing) -> tuple[str, str]:
-    subject = f"[{listing.tier}] {listing.title} — score {listing.score}"
+def format_email(listing: Listing, target: TargetConfig | None = None) -> tuple[str, str]:
+    subject_prefix = f"{target.emoji} " if target else ""
+    subject = f"[{listing.tier}] {subject_prefix}{listing.title} — score {listing.score}"
     body_lines = [
         f"{listing.tier} match — score {listing.score}/100",
         "",

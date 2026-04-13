@@ -18,12 +18,17 @@ from pathlib import Path
 import pytest
 
 from boxster_hunter.models import Listing
-from boxster_hunter.scoring import score_listing
+from boxster_hunter.scoring import score_listing as _score_listing
 from boxster_hunter.scrapers.bringatrailer import BringATrailerScraper
 from boxster_hunter.scrapers.carsandbids import CarsAndBidsScraper
 from boxster_hunter.scrapers.classic_dot_com import ClassicDotComScraper
+from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def score_listing(listing):
+    return _score_listing(listing, PORSCHE_986_BOXSTER_S)
 
 
 def _load(rel: str) -> bytes:
@@ -37,10 +42,10 @@ def cnb_listings():
     return CarsAndBidsScraper().parse(_load("carsandbids/rss.xml"))
 
 
-def test_carsandbids_parses_only_boxster_titles(cnb_listings):
-    # Cars & Bids RSS contains all current auctions; the scraper filters to
-    # Boxster mentions before returning anything.
-    assert all("boxster" in L.title.lower() for L in cnb_listings)
+def test_carsandbids_parses_all_makes(cnb_listings):
+    # The scraper returns every item in the feed regardless of make. The
+    # orchestrator's per-target routing handles filtering downstream.
+    assert len(cnb_listings) > 0
 
 
 def test_carsandbids_listings_have_valid_urls(cnb_listings):
@@ -52,10 +57,12 @@ def test_carsandbids_listings_have_valid_urls(cnb_listings):
 
 
 def test_carsandbids_extracts_year_when_in_title(cnb_listings):
+    # Cars & Bids hosts everything from prewar classics to brand-new auctions,
+    # so accept any plausible four-digit year between 1900 and 2030.
     for L in cnb_listings:
         if any(c.isdigit() for c in L.title):
             assert L.year is not None
-            assert 1990 <= L.year <= 2030
+            assert 1900 <= L.year <= 2030
 
 
 def test_carsandbids_descriptions_are_text_not_html(cnb_listings):
@@ -135,15 +142,15 @@ def bat_listings():
     return BringATrailerScraper().parse(_load("bringatrailer/feed.xml"))
 
 
-def test_bat_filters_to_boxster_titles_only(bat_listings):
-    # Fixture has 4 items: 1 Boxster S (target), 1 Ford F-250, 1 981 Boxster,
-    # 1 Ferrari. The 981 Boxster passes the 'boxster' filter but gets caught
-    # by the year/PDK check downstream. The F-250 and Ferrari should not even
-    # make it out of the parser.
+def test_bat_returns_all_items_regardless_of_make(bat_listings):
+    # Fixture has 4 items: 1 Boxster S, 1 Ford F-250, 1 981 Boxster, 1 Ferrari.
+    # The scraper returns all of them; per-target routing rejects the wrong
+    # ones at scoring time.
     titles = [L.title for L in bat_listings]
-    assert all("boxster" in t.lower() for t in titles)
-    assert not any("Ford" in t for t in titles)
-    assert not any("Ferrari" in t for t in titles)
+    assert len(titles) == 4
+    assert any("Boxster S" in t for t in titles)
+    assert any("Ford" in t for t in titles)
+    assert any("Ferrari" in t for t in titles)
 
 
 def test_bat_2004_boxster_s_scores_gold(bat_listings):

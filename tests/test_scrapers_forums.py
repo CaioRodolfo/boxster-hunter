@@ -9,13 +9,19 @@ from pathlib import Path
 import pytest
 
 from boxster_hunter.models import Listing
-from boxster_hunter.scoring import score_listing
+from boxster_hunter.scoring import score_listing as _score_listing
+from boxster_hunter.scrapers.audiworld import AudiWorldScraper
 from boxster_hunter.scrapers.boxster_forum import BoxsterForumScraper
 from boxster_hunter.scrapers.pcarmarket import PCarMarketScraper
 from boxster_hunter.scrapers.planet9 import Planet9Scraper
 from boxster_hunter.scrapers.rennlist import RennlistScraper
+from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def score_listing(listing):
+    return _score_listing(listing, PORSCHE_986_BOXSTER_S)
 
 
 def _load(rel: str) -> bytes:
@@ -125,3 +131,31 @@ def test_planet9_listings_well_formed(planet9_listings):
         assert L.source == "planet9"
         assert L.url_str.startswith("https://www.planet-9.com/threads/")
         assert L.source_id.isdigit()
+
+
+# ---------- AudiWorld ----------
+
+@pytest.fixture
+def audiworld_listings():
+    return AudiWorldScraper().parse(_load("audiworld/marketplace.html"))
+
+
+def test_audiworld_finds_threads(audiworld_listings):
+    # The marketplace landing page usually has 25-30 active threads.
+    assert len(audiworld_listings) >= 5
+
+
+def test_audiworld_listings_well_formed(audiworld_listings):
+    for L in audiworld_listings:
+        assert L.source == "audiworld"
+        assert L.url_str.startswith("https://www.audiworld.com/forums/")
+        assert L.source_id.isdigit()
+        assert L.title
+
+
+def test_audiworld_uses_vbulletin_thread_id_pattern(audiworld_listings):
+    # Reuses the parse_vbulletin helper, so source_id should be the numeric
+    # thread id from id="thread_title_{N}".
+    ids = [L.source_id for L in audiworld_listings]
+    assert all(i.isdigit() for i in ids)
+    assert len(ids) == len(set(ids))

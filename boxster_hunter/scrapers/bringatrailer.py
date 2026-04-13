@@ -36,10 +36,8 @@ class BringATrailerScraper(BaseScraper):
         out: list[Listing] = []
         for entry in feed.entries:
             title = entry.get("title", "")
-            # BaT's feed contains every make — keep only Boxster mentions and
-            # let the scoring engine handle year/trans/IMS/color.
-            if "boxster" not in title.lower():
-                continue
+            # BaT's feed contains every make — return all items and let the
+            # orchestrator route each one to whichever target it matches.
             url = entry.get("link") or entry.get("id")
             if not url:
                 continue

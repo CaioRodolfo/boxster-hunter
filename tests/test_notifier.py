@@ -3,8 +3,13 @@
 import responses
 
 from boxster_hunter.notifier import Notifier, format_email, format_slack_message
-from boxster_hunter.scoring import score_listing
+from boxster_hunter.scoring import score_listing as _score_listing
+from boxster_hunter.targets import PORSCHE_986_BOXSTER_S
 from tests.conftest import make_listing
+
+
+def score_listing(listing):
+    return _score_listing(listing, PORSCHE_986_BOXSTER_S)
 
 
 def _gold():
@@ -65,7 +70,7 @@ def test_dispatch_gold_hits_all_channels(monkeypatch):
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
     monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
-    n = Notifier()
+    n = Notifier(target=PORSCHE_986_BOXSTER_S)
     results = n.dispatch(_gold())
     assert results == {"slack": True, "email": True, "sms": True}
 
@@ -76,7 +81,7 @@ def test_dispatch_strong_includes_sms(monkeypatch):
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
     monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
-    n = Notifier()
+    n = Notifier(target=PORSCHE_986_BOXSTER_S)
     results = n.dispatch(_strong())
     assert results["slack"] is True
     assert results["email"] is True
@@ -85,13 +90,13 @@ def test_dispatch_strong_includes_sms(monkeypatch):
 
 def test_dispatch_review_silent(monkeypatch):
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
-    n = Notifier()
+    n = Notifier(target=PORSCHE_986_BOXSTER_S)
     results = n.dispatch(_review())
     assert results == {"slack": False, "email": False, "sms": False}
 
 
 def test_dispatch_marginal_silent(monkeypatch):
-    n = Notifier()
+    n = Notifier(target=PORSCHE_986_BOXSTER_S)
     results = n.dispatch(_marginal())
     assert results == {"slack": False, "email": False, "sms": False}
 
@@ -99,7 +104,7 @@ def test_dispatch_marginal_silent(monkeypatch):
 @responses.activate
 def test_send_slack_posts_to_webhook():
     responses.add(responses.POST, "https://hooks.slack.com/services/x/y/z", status=200)
-    n = Notifier(slack_webhook="https://hooks.slack.com/services/x/y/z")
+    n = Notifier(target=PORSCHE_986_BOXSTER_S, slack_webhook="https://hooks.slack.com/services/x/y/z")
     assert n.send_slack(_gold()) is True
     # JSON encoder escapes non-ASCII by default; just verify GOLD appears
     assert "GOLD" in responses.calls[0].request.body.decode()
@@ -112,7 +117,7 @@ def test_send_email_posts_to_sendgrid():
         "https://api.sendgrid.com/v3/mail/send",
         status=202,
     )
-    n = Notifier(sendgrid_api_key="SG.test", alert_email="me@example.com")
+    n = Notifier(target=PORSCHE_986_BOXSTER_S, sendgrid_api_key="SG.test", alert_email="me@example.com")
     assert n.send_email(_gold()) is True
     body = responses.calls[0].request.body.decode()
     assert "me@example.com" in body
