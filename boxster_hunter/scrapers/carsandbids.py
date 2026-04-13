@@ -13,6 +13,8 @@ know about every target; the orchestrator already does the routing centrally.
 
 from __future__ import annotations
 
+import re
+
 import feedparser
 
 from boxster_hunter.models import Listing
@@ -20,6 +22,11 @@ from boxster_hunter.scrapers._rss_common import first_year, source_id_from_url, 
 from boxster_hunter.scrapers.base import BaseScraper
 
 RSS_URL = "https://carsandbids.com/rss.xml"
+
+# Cars & Bids descriptions consistently phrase mileage as
+# "displays about 35,700 miles" or "currently shows 42k miles". The regex
+# catches both numeric forms.
+_MILEAGE_RE = re.compile(r"\b(\d{1,3}(?:,\d{3})+|\d+k?)\s*miles?\b", re.IGNORECASE)
 
 
 class CarsAndBidsScraper(BaseScraper):
@@ -49,7 +56,23 @@ class CarsAndBidsScraper(BaseScraper):
                     title=title,
                     description=description,
                     year=first_year(title),
+                    mileage=_extract_mileage(description),
                     price_is_auction=True,
                 )
             )
         return out
+
+
+def _extract_mileage(description: str) -> int | None:
+    if not description:
+        return None
+    m = _MILEAGE_RE.search(description)
+    if not m:
+        return None
+    raw = m.group(1).replace(",", "").lower()
+    try:
+        if raw.endswith("k"):
+            return int(raw[:-1]) * 1000
+        return int(raw)
+    except ValueError:
+        return None

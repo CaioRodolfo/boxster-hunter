@@ -140,6 +140,27 @@ PRESTIGE_PATTERNS = [
     r"\bprestige\b",
 ]
 
+# Options that were only available on 8V S3 Premium Plus or Prestige trims.
+# When sellers list these packages explicitly but don't write "Premium Plus"
+# literally, this gets us partial credit with a "likely PP" flag.
+#
+#   * Technology package: Premium Plus+ only — contained MMI Navigation Plus,
+#     Audi connect, Audi side assist.
+#   * S Sport Seat package: Premium Plus+ only — contained sport seats with
+#     diamond stitching and S3 logos.
+#   * Virtual Cockpit: Prestige only on early 8V facelift, later added to
+#     Premium Plus (2018+).
+#   * Bang & Olufsen: Premium Plus+ only. Already gets its own +20 rule,
+#     but we also use it as a PP trim inference signal.
+PREMIUM_PLUS_INFERRED_PATTERNS = [
+    r"technology\s+package",
+    r"\btech\s+package\b",
+    r"s\s*sport\s+seat",
+    r"virtual\s+cockpit",
+    r"mmi\s+navigation\s+plus",
+    r"audi\s+side\s+assist",
+]
+
 # Sound system — Bang & Olufsen is the option we want
 BANG_OLUFSEN_PATTERNS = [
     r"bang\s*&?\s*olufsen",
@@ -214,6 +235,7 @@ def _set_s_tronic(listing: Listing) -> None:
 _CANONICAL_FLAGS = {
     "🥇 Prestige trim",
     "✅ Premium Plus trim",
+    "✅ Premium Plus (inferred from options)",
     "🎵 Bang & Olufsen sound",
     "🔧 Haldex service documented",
     "✅ 7-speed S-Tronic",
@@ -240,7 +262,13 @@ def _normalize_flags(flags: list[str]) -> list[str]:
 
 
 def _trim_for_notion(listing: Listing) -> str:
-    return listing.trim or "Unknown"
+    if listing.trim:
+        return listing.trim
+    # When we only have the inferred-from-options signal (no explicit PP/Prestige
+    # mention), listing.trim is None but we still want to surface the hint in Notion.
+    if any("inferred" in f for f in listing.flags):
+        return "Premium Plus"
+    return "Unknown"
 
 
 def _bo_sound_for_notion(listing: Listing) -> str:
@@ -350,6 +378,11 @@ TARGET = TargetConfig(
                     flag="✅ Premium Plus trim",
                     patterns=PREMIUM_PLUS_PATTERNS,
                     side_effect=_set_premium_plus,
+                ),
+                ScoringRule(
+                    points=15,
+                    flag="✅ Premium Plus (inferred from options)",
+                    patterns=PREMIUM_PLUS_INFERRED_PATTERNS,
                 ),
             ],
             fallback_flag="⚠️ Trim unknown — likely base S3",
