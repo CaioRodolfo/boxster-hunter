@@ -2,7 +2,11 @@ name: 986 Hunter
 
 on:
   schedule:
-    - cron: '0 * * * *'   # every hour
+    # Hourly from 8am to 8pm Eastern (13 runs/day). GitHub cron is UTC-only
+    # and doesn't observe DST, so this expression targets EDT (UTC-4):
+    # 12:00-00:00 UTC == 8am-8pm EDT. When DST ends in November, swap to
+    # `0 1,13-23 * * *` to keep the 8am-8pm window in EST (UTC-5).
+    - cron: '0 0,12-23 * * *'
   workflow_dispatch:       # manual trigger
 
 jobs:
