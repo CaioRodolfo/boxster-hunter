@@ -88,11 +88,15 @@ def test_dispatch_strong_includes_sms(monkeypatch):
     assert results["sms"] is True
 
 
-def test_dispatch_review_silent(monkeypatch):
+def test_dispatch_review_fires_all_channels(monkeypatch):
+    # Threshold lowered to REVIEW — any listing worth a manual look also
+    # gets a Slack ping / email / SMS, not just STRONG+ matches.
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv("SENDGRID_API_KEY", raising=False)
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
     n = Notifier(target=PORSCHE_986_BOXSTER_S)
     results = n.dispatch(_review())
-    assert results == {"slack": False, "email": False, "sms": False}
+    assert results == {"slack": True, "email": True, "sms": True}
 
 
 def test_dispatch_marginal_silent(monkeypatch):

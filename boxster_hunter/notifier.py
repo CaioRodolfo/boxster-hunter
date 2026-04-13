@@ -4,8 +4,12 @@ Maps a scored Listing to the right channels:
 
   GOLD (90+):    Email + Slack + Notion + SMS
   STRONG (70+):  Email + Slack + Notion + SMS
-  REVIEW (50+):  Notion only
+  REVIEW (50+):  Email + Slack + Notion + SMS
   MARGINAL (<50): nothing (still recorded in SQLite)
+
+Slack, email, and SMS all fire at the REVIEW tier and above — the threshold
+is deliberately permissive so the user sees anything the scoring engine
+thinks is worth a manual look, not just slam-dunk matches.
 
 A single ``Notifier`` instance is bound to one ``TargetConfig`` and reads the
 target's ``slack_webhook_env`` to find its destination webhook. Email + SMS
@@ -63,11 +67,16 @@ class Notifier:
         self.session = session or requests.Session()
 
     def dispatch(self, listing: Listing) -> dict[str, bool]:
-        """Send notifications appropriate to the listing's tier."""
+        """Send notifications appropriate to the listing's tier.
+
+        Slack/email/SMS fire for REVIEW-tier and above. MARGINAL and
+        REJECTED listings are silent (they still get recorded to SQLite +
+        Notion by the orchestrator, but no push alerts).
+        """
         tier = listing.tier
         results = {"slack": False, "email": False, "sms": False}
 
-        if tier in (GOLD_TIER, STRONG_TIER):
+        if tier in (GOLD_TIER, STRONG_TIER, REVIEW_TIER):
             results["slack"] = self.send_slack(listing)
             results["email"] = self.send_email(listing)
             results["sms"] = self.send_sms(listing)
