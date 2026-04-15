@@ -27,14 +27,22 @@ _TID_RE = re.compile(r"thread_title_(\d+)")
 def parse_vbulletin(payload: str | bytes, source: str, base_url: str, now) -> list[Listing]:
     soup = BeautifulSoup(payload, "lxml")
     out: list[Listing] = []
+    seen_tids: set[str] = set()
+    # Sticky threads get rendered twice per page (once in the "Sticky" section,
+    # once in the normal list) and the two anchors can carry slightly different
+    # hrefs (trailing slash, session params). Dedup by thread id so downstream
+    # code never sees the same listing twice — this matches parse_xenforo.
     for anchor in soup.find_all("a", id=_TID_RE):
         tid_match = _TID_RE.match(anchor.get("id", ""))
         if not tid_match:
             continue
         tid = tid_match.group(1)
+        if tid in seen_tids:
+            continue
         href = anchor.get("href", "")
         if not href:
             continue
+        seen_tids.add(tid)
         url = href if href.startswith("http") else f"{base_url}{href}"
         title = anchor.get_text(" ", strip=True)
         out.append(

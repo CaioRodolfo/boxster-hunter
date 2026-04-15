@@ -27,7 +27,7 @@ jobs:
         run: uv sync --extra dev
 
       - name: Restore SQLite dedup cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: boxster.db
           key: boxster-db-${{ github.run_number }}

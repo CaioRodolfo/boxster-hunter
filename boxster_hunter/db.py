@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS seen_listings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source TEXT NOT NULL,
     source_id TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
     first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_score INTEGER,
     last_tier TEXT,
@@ -60,26 +60,51 @@ class Database:
             return row is not None
 
     def record(self, listing: Listing, notion_page_id: str | None = None) -> None:
-        """Insert or update a listing in the dedup table."""
+        """Insert or update a listing in the dedup table.
+
+        Dedups by ``(source, source_id)`` — the stable identifier. Scrapers
+        sometimes emit the same thread with slightly different URLs (sticky
+        threads rendered in multiple sections, trailing slashes, session
+        params), so the URL is not reliable as a primary key. On conflict we
+        refresh the URL/score/tier and preserve the existing notion_page_id
+        unless a new one is supplied.
+        """
         with self._conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO seen_listings (source, source_id, url, last_score, last_tier, notion_page_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(url) DO UPDATE SET
-                    last_score = excluded.last_score,
-                    last_tier = excluded.last_tier,
-                    notion_page_id = COALESCE(excluded.notion_page_id, seen_listings.notion_page_id)
-                """,
-                (
-                    listing.source,
-                    listing.source_id,
-                    listing.url_str,
-                    listing.score,
-                    listing.tier,
-                    notion_page_id,
-                ),
-            )
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO seen_listings (source, source_id, url, last_score, last_tier, notion_page_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(source, source_id) DO UPDATE SET
+                        url = excluded.url,
+                        last_score = excluded.last_score,
+                        last_tier = excluded.last_tier,
+                        notion_page_id = COALESCE(excluded.notion_page_id, seen_listings.notion_page_id)
+                    """,
+                    (
+                        listing.source,
+                        listing.source_id,
+                        listing.url_str,
+                        listing.score,
+                        listing.tier,
+                        notion_page_id,
+                    ),
+                )
+            except sqlite3.IntegrityError:
+                # Legacy cached DBs still carry ``UNIQUE`` on ``url``. If the
+                # upsert hits that constraint (a different source_id now uses
+                # an already-seen URL), fall back to updating the existing
+                # row by URL so one bad listing doesn't kill the whole run.
+                conn.execute(
+                    """
+                    UPDATE seen_listings
+                    SET last_score = ?,
+                        last_tier = ?,
+                        notion_page_id = COALESCE(?, notion_page_id)
+                    WHERE url = ?
+                    """,
+                    (listing.score, listing.tier, notion_page_id, listing.url_str),
+                )
 
     def filter_new(self, listings: list[Listing]) -> list[Listing]:
         """Return only listings whose URL we have not seen yet."""

@@ -33,6 +33,18 @@ def test_record_is_idempotent_on_url(tmp_path):
     assert db.count() == 1
 
 
+def test_record_upserts_when_source_id_matches_but_url_changes(tmp_path):
+    # Regression: vBulletin sticky threads appear twice with slightly
+    # different hrefs but the same source_id. Before the fix, the second
+    # record() raised sqlite3.IntegrityError on the composite UNIQUE.
+    db = Database(tmp_path / "test.db")
+    first = make_listing(source="yotatech", source_id="t123", url="https://example.com/t/123")
+    second = make_listing(source="yotatech", source_id="t123", url="https://example.com/t/123/")
+    db.record(first)
+    db.record(second)  # must not raise
+    assert db.count() == 1
+
+
 def test_filter_new_handles_empty(tmp_path):
     db = Database(tmp_path / "test.db")
     assert db.filter_new([]) == []
